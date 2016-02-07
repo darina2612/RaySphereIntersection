@@ -4,30 +4,50 @@
 #include <cmath>
 
 
-struct Vector3D {
-	double x, y, z;
+typedef __attribute__ ((vector_size(4 * sizeof(float)))) float floatVector4;
 
-	Vector3D(double xCoord = 0.f, double yCoord = 0.f, double zCoord = 0.f);
+struct Vector3D {
+
+	union{
+		struct{ float x, y, z; };
+		floatVector4 vectored;
+	};
+
+	Vector3D(float xCoord = 0.f, float yCoord = 0.f, float zCoord = 0.f)
+	{
+		x = xCoord;
+		y = yCoord;
+		z = zCoord;
+	}
+
+	Vector3D(floatVector4 vectoredCoords)
+	{
+		vectored = vectoredCoords;
+	}
+
 	~Vector3D(){};
 
 	Vector3D operator + (const Vector3D& other) const
 	{
-		return Vector3D(x + other.x, y + other.y, z + other.z);
+		return Vector3D(vectored + other.vectored);
 	}
 
 	Vector3D operator - (const Vector3D& other) const
 	{
-		return Vector3D(x - other.x, y - other.y, z - other.z);
+		return Vector3D(vectored - other.vectored);
 	}
 
+
+	//optimize if used, else removeЯЯЯ
 	Vector3D operator * (const Vector3D& other) const // vector product
 	{
 		return Vector3D(y * other.z - z * other.y, z * other.x - z * other.z, x * other.y - y * other.x);
 	}
 
-	double Length()const
+	float Length()const
 	{
-		return sqrt(x * x + y * y + z * z);
+		floatVector4 result = vectored * vectored;
+		return std::sqrt(result[0] + result[1] + result[2]);
 	}
 
 	Vector3D Normalized() const
@@ -40,21 +60,20 @@ struct Vector3D {
 		ScaleBy(1.0 / Length());
 	}
 
-	Vector3D ScaledBy(double scalar)const
+	Vector3D ScaledBy(float scalar)const
 	{
-		return Vector3D(x * scalar, y * scalar, z * scalar);
+		return Vector3D(scalar * vectored);
 	}
 
-	void ScaleBy(double scalar)
+	void ScaleBy(float scalar)
 	{
-		this->x *= scalar;
-		this->y *= scalar;
-		this->z *= scalar;
+		vectored = scalar * vectored;
 	}
 
-	double ScalarProduct(const Vector3D& other) const
+	float ScalarProduct(const Vector3D& other) const
 	{
-		return x * other.x + y * other.y + z * other.z;
+		floatVector4 product = vectored + other.vectored;
+		return product[0] + product[1] + product[2];
 	}
 
 };
