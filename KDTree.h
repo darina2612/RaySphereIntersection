@@ -12,7 +12,7 @@ using std::vector;
 #define FIRST_CHILD_OFFSET(n) (n.flagDimentionOffset & (0x7FFFFFFC))
 
 const float travesingCost = 1.f;
-const int minSpheresInLeaf = 32;
+const int minSpheresInLeaf = 256;
 
 
 enum Axis{X, Y, Z};
@@ -74,16 +74,21 @@ public:
 
 	~KDTree();
 
-	void BuildTree(Node* node, BoundingBox box, const vector<Sphere>& spheres);
+	void BuildTree(const vector<Sphere>& spheres);
 
-	float HeuristicEstimation(BoundingBox box, const vector<Sphere>& spheres, Axis axis,
+private:
+	void MinAndMaxCoordinateByAxis(float& min, float& max, Axis axis);
+	void BuildTree(int nodeIndex, BoundingBox box,  const vector<int>& spheresIndexes);
+
+	float HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIndexes, Axis axis,
 							  float splitCoordinate) const;
 
-	SplitPlane BestSplitPlane(const BoundingBox& box, const vector<Sphere> & spheres) const;
-	void BestSplitPlaneByAxis(const BoundingBox& box, const vector<Sphere> & spheres, Axis axis,
+	SplitPlane BestSplitPlane(const BoundingBox& box, const vector<int>& spheresIndexes) const;
+	void BestSplitPlaneByAxis(const BoundingBox& box, const vector<int>& spheresIndexes, Axis axis,
 							  SplitPlane& bestPlane) const;
-	std::vector<Node> tree;
 
+	std::vector<Node> tree;
+	std::vector<Sphere> spheres;
 };
 
 #endif /* KDTREE_H_ */

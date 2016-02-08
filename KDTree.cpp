@@ -23,45 +23,90 @@ KDTree::~KDTree()
 }
 
 
-void KDTree::BuildTree(Node* node, BoundingBox box, const vector<Sphere>& spheres)
+void KDTree::MinAndMaxCoordinateByAxis(float& min, float& max, Axis axis)
+{
+	min = this->spheres[0].center[axis] - this->spheres[0].radius;
+	max = this->spheres[0].center[axis] + this->spheres[0].radius;
+
+	float currentMin, currentMax;
+
+	for(auto sphere : this->spheres)
+	{
+		currentMin = sphere.center[axis] - sphere.radius;
+		currentMax = sphere.center[axis] + sphere.radius;
+		if(currentMin < min) min = currentMin;
+		if(currentMax > max) max =  currentMax;
+	}
+}
+
+
+void KDTree::BuildTree(const vector<Sphere>& spheres)
+{
+	this->spheres = spheres;
+
+	BoundingBox theWholeBox;
+	this->tree.push_back(Node());
+
+	std::thread byX(&KDTree::MinAndMaxCoordinateByAxis, this, std::ref(theWholeBox.minPoint.x),
+					std::ref(theWholeBox.maxPoint.x), X);
+	std::thread byY(&KDTree::MinAndMaxCoordinateByAxis, this, std::ref(theWholeBox.minPoint.y),
+					std::ref(theWholeBox.maxPoint.y), Y);
+
+	this->MinAndMaxCoordinateByAxis(theWholeBox.minPoint.z, theWholeBox.maxPoint.z, Z);
+
+	int n = this->spheres.size();
+	vector<int> spheresIndexes(n);
+	for(int i = 0; i < n; ++i)
+	{
+		spheresIndexes[i] = i;
+	}
+
+	byX.join();
+	byY.join();
+
+	this->BuildTree(0, theWholeBox, spheresIndexes);
+}
+
+
+void KDTree::BuildTree(int nodeIndex, BoundingBox box, const vector<int>& spheresIndexes)
 {
 	if(spheres.size() <= minSpheresInLeaf)
 	{
-		node->leaf.flagDimentionOffset |= (unsigned int)(1<<31);//is leaf, flag set to 1
+		this->tree[nodeIndex].leaf.flagDimentionOffset |= (unsigned int)(1<<31);//is leaf, flag set to 1
 		//!!!!!!!!!!TODO:set where objects are!!!!
 		return;
 	}
 
-	SplitPlane plane = this->BestSplitPlane(box, spheres);
+	SplitPlane plane = this->BestSplitPlane(box, spheresIndexes);
 
 	BoundingBox leftBox, rightBox;
 
 	box.Split(plane.axis, plane.coordinate, leftBox, rightBox);
 
-	vector<Sphere> leftSpheres, rightSpheres;
+	vector<int> leftSpheresIndexes, rightSpheresIndexes;
 
-	for(auto sphere : spheres)
+	for(auto i : spheresIndexes)
 	{
-		if(sphere.center[plane.axis] <= plane.coordinate)
+		if(this->spheres[i].center[plane.axis] <= plane.coordinate)
 		{
-			leftSpheres.push_back(sphere);
+			leftSpheresIndexes.push_back(i);
 		}
-		else rightSpheres.push_back(sphere);
+		else rightSpheresIndexes.push_back(i);
 	}
 
 	Node leftChild, rightChild;
 	this->tree.push_back(leftChild);
 	this->tree.push_back(rightChild);
-	node->inner.flagDimentionOffset = (this->tree.size()-2) * 8;//the offset of the first child *8, do the first 3 bits are 0's
-	node->inner.flagDimentionOffset |= (unsigned)(plane.axis << 30);
-	this->BuildTree(&leftChild, leftBox, leftSpheres);
-	this->BuildTree(&rightChild, rightBox, rightSpheres);
+	this->tree[nodeIndex].inner.flagDimentionOffset = (this->tree.size()-2 - nodeIndex) * 8;//the offset of the first child *8, do the first 3 bits are 0's
+	this->tree[nodeIndex].inner.flagDimentionOffset |= (unsigned)(plane.axis << 30);
+	this->BuildTree(this->tree.size() - 2, leftBox, leftSpheresIndexes);
+	this->BuildTree(this->tree.size() - 1, rightBox, rightSpheresIndexes);
 }
 
 
 //Cost(cell) = C_trav + Prob(hit L) * Cost(L) + Prob(hit R) * Cost(R)
 //= C_trav + SA(L) * TriCount(L) + SA(R) * TriCount(R)
-float KDTree::HeuristicEstimation(BoundingBox box, const vector<Sphere>& spheres,
+float KDTree::HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIndexes,
 								 Axis axis, float splitCoordinate) const
 {
 	float al, bl, cl, ar, br, cr; //boxes' dimensions lengths
@@ -101,17 +146,17 @@ float KDTree::HeuristicEstimation(BoundingBox box, const vector<Sphere>& spheres
 
 	int rightSpheresCount = 0, leftSpheresCount = 0;
 
-	for(auto sphere : spheres)
+	for(auto i : spheresIndexes)
 	{
-		if((sphere.center[axis] + sphere.radius) <= splitCoordinate) ++leftSpheresCount;
-		else if((sphere.center[axis] - sphere.radius) >= splitCoordinate) ++rightSpheresCount;
+		if((this->spheres[i].center[axis] + this->spheres[i].radius) <= splitCoordinate) ++leftSpheresCount;
+		else if((this->spheres[i].center[axis] - this->spheres[i].radius) >= splitCoordinate) ++rightSpheresCount;
 	}
 
 	return travesingCost + sl * leftSpheresCount + sr * rightSpheresCount;
 }
 
 
-void KDTree::BestSplitPlaneByAxis(const BoundingBox& box, const vector<Sphere> & spheres, Axis axis,
+void KDTree::BestSplitPlaneByAxis(const BoundingBox& box,  const vector<int>& spheresIndexes, Axis axis,
 								  SplitPlane& bestPlane) const
 {
 	SplitPlane currentPlane;
@@ -119,21 +164,21 @@ void KDTree::BestSplitPlaneByAxis(const BoundingBox& box, const vector<Sphere> &
 
 	bestPlane.splitEstimation = std::numeric_limits<float>::max();
 	float coordinate;
-	for(auto sphere : spheres)
+	for(auto i : spheresIndexes)
 	{
-		coordinate = sphere.center[axis] - sphere.radius;
+		coordinate = this->spheres[i].center[axis] - this->spheres[i].radius;
 		if(coordinate >= box.minPoint[axis])
 		{
 			currentPlane.coordinate = coordinate;
-			currentPlane.splitEstimation = this->HeuristicEstimation(box, spheres, axis, coordinate);
+			currentPlane.splitEstimation = this->HeuristicEstimation(box, spheresIndexes, axis, coordinate);
 			if(currentPlane < bestPlane) bestPlane = currentPlane;
 		}
 
-		coordinate = sphere.center[axis] + sphere.radius;
+		coordinate = this->spheres[i].center[axis] - this->spheres[i].radius;
 		if(coordinate <= box.minPoint[axis])
 		{
 			currentPlane.coordinate = coordinate;
-			currentPlane.splitEstimation = this->HeuristicEstimation(box, spheres, axis, coordinate);
+			currentPlane.splitEstimation = this->HeuristicEstimation(box, spheresIndexes, axis, coordinate);
 			if(currentPlane < bestPlane) bestPlane = currentPlane;
 		}
 	}
@@ -141,15 +186,15 @@ void KDTree::BestSplitPlaneByAxis(const BoundingBox& box, const vector<Sphere> &
 }
 
 
-SplitPlane KDTree::BestSplitPlane(const BoundingBox& box, const vector<Sphere> & spheres) const
+SplitPlane KDTree::BestSplitPlane(const BoundingBox& box,  const vector<int>& spheresIndexes) const
 {
 	SplitPlane bestByX, bestByY, bestByZ;
 
 	std::thread xThread(&KDTree::BestSplitPlaneByAxis, this, std::cref(box),
-						std::cref(spheres), X, std::ref(bestByX));
+						std::cref(spheresIndexes), X, std::ref(bestByX));
 	std::thread yThread(&KDTree::BestSplitPlaneByAxis, this, std::cref(box),
-						std::cref(spheres), Y, std::ref(bestByY));
-	this->BestSplitPlaneByAxis(box, spheres, Z, bestByZ);
+						std::cref(spheresIndexes), Y, std::ref(bestByY));
+	this->BestSplitPlaneByAxis(box, spheresIndexes, Z, bestByZ);
 
 	xThread.join();
 	yThread.join();
