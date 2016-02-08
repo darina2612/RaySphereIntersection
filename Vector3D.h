@@ -2,11 +2,15 @@
 #define VECTOR3D_H_
 
 #include <cmath>
+#include <vector>
+
+using std::vector;
 
 
 typedef __attribute__ ((vector_size(4 * sizeof(float)))) float floatVector4;
 
-struct Vector3D {
+struct Vector3D
+{
 
 	union{
 		struct{ float x, y, z; };
@@ -27,6 +31,16 @@ struct Vector3D {
 
 	~Vector3D(){};
 
+	float& operator [] (const int index)
+	{
+		return vectored[index];
+	}
+
+	const float& operator [] (const int index) const
+	{
+		return vectored[index];
+	}
+
 	Vector3D operator + (const Vector3D& other) const
 	{
 		return Vector3D(vectored + other.vectored);
@@ -37,8 +51,7 @@ struct Vector3D {
 		return Vector3D(vectored - other.vectored);
 	}
 
-
-	//optimize if used, else removeЯЯЯ
+	//optimize if used, else remove
 	Vector3D operator * (const Vector3D& other) const // vector product
 	{
 		return Vector3D(y * other.z - z * other.y, z * other.x - z * other.z, x * other.y - y * other.x);
@@ -47,7 +60,7 @@ struct Vector3D {
 	float Length()const
 	{
 		floatVector4 result = vectored * vectored;
-		return std::sqrt(result[0] + result[1] + result[2]);
+		return sqrt(result[0] + result[1] + result[2]);
 	}
 
 	Vector3D Normalized() const
@@ -77,5 +90,27 @@ struct Vector3D {
 	}
 
 };
+
+
+struct Sphere
+{
+	Vector3D center;
+	float radius;
+
+	Sphere(){};
+	Sphere(Vector3D c, double r) : center(c), radius(r) {};
+};
+
+struct Rays
+{
+	vector<float> startXs, startYs, startZs, dirXs, dirYs, dirZs;
+};
+
+
+struct Spheres
+{
+	vector<float> centerXs, centerYs, centerZs, radiuses;
+};
+
 
 #endif /* VECTOR3D_H_ */

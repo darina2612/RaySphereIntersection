@@ -1,26 +1,69 @@
 #ifndef KDTREE_H_
 #define KDTREE_H_
 
+#include "Vector3D.h"
+
 #include <vector>
+
+using std::vector;
+
+#define ISLEAF(n) (n.flagDimentionOffset & (unsigned int)(1<<31))
+#define AXIS(n) (n.flagDimentionOffset & 0x3)
+#define FIRST_CHILD_OFFSET(n) (n.flagDimentionOffset & (0x7FFFFFFC))
+
+const float travesingCost = 1.f;
+const int minSpheresInLeaf = 32;
+
+
+enum Axis{X, Y, Z};
+
+
+struct BoundingBox
+{
+	Vector3D minPoint, maxPoint;
+
+	void Split(Axis axis, float splitCoordinate, BoundingBox& leftBox, BoundingBox& rightBox) const
+	{
+		leftBox = rightBox = *this;
+		leftBox.minPoint[axis] = rightBox.maxPoint[axis] = splitCoordinate;
+	}
+};
 
 
 struct LeafNode {
-unsigned int flagDimentionOffset;
-// bits 0..1: splitting dimension
-// bits 2..30v: offset bits
-// bit 31 (sign) : flag whether node is a leaf
-};
-struct InnerNode {
-unsigned int flagAndOffset;
-// bits 0..30: offset to first son
-// bit 31 (sign) : flat whether node is a leaf
-float splitCoordinate;
+	unsigned int flagDimentionOffset;
+	// bits 0..1: splitting dimension
+	// bits 2..30v: offset bits
+	// bit 31 (sign) : flag whether node is a leaf
 };
 
+
+struct InnerNode {
+	unsigned int flagDimentionOffset;
+	// bits 0..30: offset to first son
+	// bit 31 (sign) : flat whether node is a leaf
+	float splitCoordinate;
+};
+
+
 typedef union {
-LeafNode leaf;
-InnerNode inner;
+	LeafNode leaf;
+	InnerNode inner;
 } Node;
+
+
+struct SplitPlane
+{
+	Axis axis;
+	float coordinate;
+	float splitEstimation;
+
+	bool operator < (const SplitPlane& other) const
+	{
+		return splitEstimation < other.splitEstimation;
+	}
+};
+
 
 class KDTree {
 public:
@@ -31,6 +74,14 @@ public:
 
 	~KDTree();
 
+	void BuildTree(Node* node, BoundingBox box, const vector<Sphere>& spheres);
+
+	float HeuristicEstimation(BoundingBox box, const vector<Sphere>& spheres, Axis axis,
+							  float splitCoordinate) const;
+
+	SplitPlane BestSplitPlane(const BoundingBox& box, const vector<Sphere> & spheres) const;
+	void BestSplitPlaneByAxis(const BoundingBox& box, const vector<Sphere> & spheres, Axis axis,
+							  SplitPlane& bestPlane) const;
 	std::vector<Node> tree;
 
 };
