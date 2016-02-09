@@ -51,10 +51,11 @@ struct Vector3D
 		return Vector3D(vectored - other.vectored);
 	}
 
-	//optimize if used, else remove
-	Vector3D operator * (const Vector3D& other) const // vector product
+
+	Vector3D operator * (const Vector3D& other) const // multiplication coordinate by coordinate
 	{
-		return Vector3D(y * other.z - z * other.y, z * other.x - z * other.z, x * other.y - y * other.x);
+		return Vector3D(vectored * other.vectored);
+		//return Vector3D(y * other.z - z * other.y, z * other.x - z * other.z, x * other.y - y * other.x);
 	}
 
 	float Length()const
@@ -100,6 +101,13 @@ struct Sphere
 	Sphere(){};
 	Sphere(Vector3D c, double r) : center(c), radius(r) {};
 };
+
+
+struct Ray
+{
+	Vector3D origin, dir;
+};
+
 
 struct Rays
 {

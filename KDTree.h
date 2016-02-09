@@ -7,12 +7,8 @@
 
 using std::vector;
 
-#define ISLEAF(n) (n.flagDimentionOffset & (unsigned int)(1<<31))
-#define AXIS(n) (n.flagDimentionOffset & 0x3)
-#define FIRST_CHILD_OFFSET(n) (n.flagDimentionOffset & (0x7FFFFFFC))
-
 const float travesingCost = 1.f;
-const int minSpheresInLeaf = 256;
+const int minSpheresInLeaf = 32;
 
 
 enum Axis{X, Y, Z};
@@ -25,7 +21,7 @@ struct BoundingBox
 	void Split(Axis axis, float splitCoordinate, BoundingBox& leftBox, BoundingBox& rightBox) const
 	{
 		leftBox = rightBox = *this;
-		leftBox.minPoint[axis] = rightBox.maxPoint[axis] = splitCoordinate;
+		leftBox.maxPoint[axis] = rightBox.minPoint[axis] = splitCoordinate;
 	}
 };
 
@@ -46,10 +42,29 @@ struct InnerNode {
 };
 
 
-typedef union {
+union Node
+{
 	LeafNode leaf;
 	InnerNode inner;
-} Node;
+};
+
+
+inline bool isLeaf(const Node& n)
+{
+	return n.inner.flagDimentionOffset & (unsigned int)(1<<31);
+}
+
+
+inline Axis splitAxis(const Node& n)
+{
+	return static_cast<Axis>(n.inner.flagDimentionOffset & 0x3);
+}
+
+
+inline int firstChildOffset(const Node& n)
+{
+	return n.inner.flagDimentionOffset & (0x7FFFFFFC);
+}
 
 
 struct SplitPlane
@@ -67,7 +82,7 @@ struct SplitPlane
 
 class KDTree {
 public:
-	KDTree();
+	KDTree(){leaves = 0;};
 
 	KDTree(const KDTree& other) = delete;
 	KDTree& operator = (const KDTree& other) = delete;
@@ -76,7 +91,14 @@ public:
 
 	void BuildTree(const vector<Sphere>& spheres);
 
+	bool Intersect(const Ray& ray, Vector3D& intersectionPoint) const;
+
+	int NodesNumber() const {return tree.size();}
+	int LeavesNumber()const {return leaves;}
+
 private:
+	bool Traverse(const Ray& ray, float tnear, float tfar, float& intersectionPointT) const;
+
 	void MinAndMaxCoordinateByAxis(float& min, float& max, Axis axis);
 	void BuildTree(int nodeIndex, BoundingBox box,  const vector<int>& spheresIndexes);
 
@@ -87,8 +109,13 @@ private:
 	void BestSplitPlaneByAxis(const BoundingBox& box, const vector<int>& spheresIndexes, Axis axis,
 							  SplitPlane& bestPlane) const;
 
+	bool ClosestIntersectionPointInLeaf(int leafIndex, const Ray& ray, float& closestPointT) const;
+
 	std::vector<Node> tree;
 	std::vector<Sphere> spheres;
+	std::vector< std::vector<int> > leafSpheresIndexes;
+	BoundingBox sceneBox;
+	int leaves;
 };
 
 #endif /* KDTREE_H_ */
