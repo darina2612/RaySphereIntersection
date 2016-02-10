@@ -27,12 +27,13 @@ bool KDTree::Intersect(const Ray& ray, Vector3D& intersectionPoint) const
 {
 	float tmin, tmax;
 	Vector3D inversedDir;
-	inversedDir.vectored = 1.f / inversedDir.vectored;
+	inversedDir.vectored = 1.f / ray.dir.vectored;
 
 	// lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
 	// r.org is origin of ray
 	Vector3D minPlanesIntersections, maxPlanesIntersections;
 	minPlanesIntersections = (this->sceneBox.minPoint - ray.origin) * inversedDir;
+	maxPlanesIntersections = (this->sceneBox.maxPoint - ray.origin) * inversedDir;
 //	float t1 = (lb.x - r.org.x)*dirfrac.x;
 //	float t2 = (rt.x - r.org.x)*dirfrac.x;
 //	float t3 = (lb.y - r.org.y)*dirfrac.y;
@@ -45,7 +46,7 @@ bool KDTree::Intersect(const Ray& ray, Vector3D& intersectionPoint) const
 			min(minPlanesIntersections[2], maxPlanesIntersections[2]));
 	tmax = min(min(max(minPlanesIntersections[0], maxPlanesIntersections[0]),
 			max(minPlanesIntersections[1], maxPlanesIntersections[1])),
-			max(minPlanesIntersections[2], maxPlanesIntersections[1]));
+			max(minPlanesIntersections[2], maxPlanesIntersections[2]));
 
 	// if tmax < 0, ray (line) is intersecting AABB, but whole AABB is behing us
 	if (tmax < 0)
@@ -117,8 +118,9 @@ bool KDTree::Traverse(const Ray& ray, float tnear, float tfar, float& intersecti
 			}
 		}
 
-		this->ClosestIntersectionPointInLeaf(currentIndex, ray, intersectionPointT);
-		if(tfar <= intersectionPointT)
+		if(this->ClosestIntersectionPointInLeaf(currentIndex, ray, intersectionPointT)) return true;
+
+		if(tfar >= intersectionPointT)
 			return false; // early ray termination
 		if (s.empty())
 			return false; // nothing else to traverse anymore
@@ -142,8 +144,9 @@ bool KDTree::ClosestIntersectionPointInLeaf(int leafIndex, const Ray& ray, float
 
 	floatVector4 centerXs, centerYs, centerZs, radiuses, Bs, Cs, Ds, DsSqrted, zeroVector, t0s, t1s;
 
+	float maxFloat = std::numeric_limits<float>::max();
 	zeroVector = _mm_set1_ps(0.f);
-	closestPointT =  std::numeric_limits<float>::max();
+	closestPointT =  maxFloat;
 	float currentClosestT;
 
 	for(int i = 0; i < numSpheres; i += 4)
@@ -167,16 +170,17 @@ bool KDTree::ClosestIntersectionPointInLeaf(int leafIndex, const Ray& ray, float
 		}
 
 		//A = 1 when ray.dir is normal
+		Vector3D normalizedDir = ray.dir.Normalized();
 		//B = 2 * (Xd * (X0 - Xc) + Yd * (Y0 - Yc) + Zd * (Z0 - Zc))
-		Bs = 2.f * (ray.dir.Normalized().x * (ray.origin.x - centerXs) +
-					ray.dir.Normalized().y * (ray.origin.y + centerYs) +
-					ray.dir.Normalized().z * (ray.origin.z - centerZs));
+		Bs = 2.f * (normalizedDir.x * (ray.origin.x - centerXs) + normalizedDir.y * (ray.origin.y - centerYs)
+			 + normalizedDir.z * (ray.origin.z - centerZs));
 
 		//D = (X0 - Xc)^2 + (Y0 - Yc)^2 + (Z0 - Zc)^2 - Sr^2
 		Cs = (ray.origin.x - centerXs) * (ray.origin.x - centerXs) +
-			 (ray.origin.y - centerYs) * (ray.origin.y - centerYs) - radiuses * radiuses;
+			 (ray.origin.y - centerYs) * (ray.origin.y - centerYs) +
+			 (ray.origin.z - centerZs) * (ray.origin.z - centerZs)- radiuses * radiuses;
 
-		Ds = Bs * Bs - 4 * Cs;
+		Ds = Bs * Bs - 4.f * Cs;
 
 		//using http://felix.abecassis.me/2012/08/sse-vectorizing-conditional-code/:
 		floatVector4 nonNegativesMask = _mm_cmpge_ps(Ds, zeroVector);
@@ -184,24 +188,24 @@ bool KDTree::ClosestIntersectionPointInLeaf(int leafIndex, const Ray& ray, float
 		DsSqrted = _mm_sqrt_ps(Ds);
 		DsSqrted = _mm_and_ps(nonNegativesMask, DsSqrted);
 
-		t0s = 0.5 * (-Bs - DsSqrted);
-		t1s = 0.5 * (-Bs + DsSqrted);
+		t0s = 0.5f * (-Bs - DsSqrted);
+		t1s = 0.5f * (-Bs + DsSqrted);
 
 		t0s = _mm_and_ps(nonNegativesMask, t0s);
 		t1s = _mm_and_ps(nonNegativesMask, t1s);
 
-		currentClosestT = std::numeric_limits<float>::max();
+		currentClosestT = maxFloat;
 
 		for(int j = 0; j < 4; ++j)
 		{
-			if(t0s[j] > 0.0 && t0s[j] < currentClosestT) currentClosestT = t0s[j];
-			if(t1s[j] > 0.0 && t1s[j] < currentClosestT) currentClosestT = t1s[j];
+			if(t0s[j] > 0.f && t0s[j] < currentClosestT) currentClosestT = t0s[j];
+			if(t1s[j] > 0.f && t1s[j] < currentClosestT) currentClosestT = t1s[j];
 		}
 
 		if(currentClosestT < closestPointT) closestPointT = currentClosestT;
 	}
 
-	 return (closestPointT != std::numeric_limits<float>::max());
+	 return (closestPointT < maxFloat);
 }
 
 
