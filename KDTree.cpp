@@ -2,7 +2,6 @@
 #include <stack>
 #include <limits>
 #include <thread>
-#include <iostream>
 #include <algorithm>
 
 using std::min;
@@ -12,7 +11,7 @@ using std::stack;
 
 bool KDTree::Intersect(const Ray& ray, Vector3D& intersectionPoint) const
 {
-	// used for help here http://gamedev.stackexchange.com/questions/18436/most-efficient-aabb-vs-ray-collision-algorithms
+	// used help fromS here http://gamedev.stackexchange.com/questions/18436/most-efficient-aabb-vs-ray-collision-algorithms
 	float tmin, tmax;
 	Vector3D inversedDir;
 	inversedDir.vectored = 1.f / ray.dir.vectored;
@@ -29,7 +28,7 @@ bool KDTree::Intersect(const Ray& ray, Vector3D& intersectionPoint) const
 			max(minPlanesIntersections[1], maxPlanesIntersections[1])),
 			max(minPlanesIntersections[2], maxPlanesIntersections[2]));
 
-	// if tmax < 0, the scene box is "behing" the ray
+	// if tmax < 0, the scene box is "behind" the ray
 	if(tmax < 0) return false;
 
 	// if tmin > tmax, ray doesn't intersect scene bounding box

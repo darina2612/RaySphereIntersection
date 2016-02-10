@@ -39,7 +39,7 @@ void IntersectRaysWithSpheres(const vector<Ray>& rays, const vector<Sphere>& sph
 	int numThreads = rays.size() / raysPerThread;
 
 	vector<thread> threads;
-	if(1 &&numThreads > 1)
+	if(numThreads > 1)
 	{
 		threads.resize(numThreads);
 		for(int i = 1; i <= numThreads; ++i)
@@ -53,7 +53,7 @@ void IntersectRaysWithSpheres(const vector<Ray>& rays, const vector<Sphere>& sph
 
 	RaysIntersection(rays, spheres, intersectionPoints, doesIntersect,raysPerThread * numThreads, rays.size());
 
-	if(1 && numThreads > 1)
+	if(numThreads > 1)
 	{
 		for(int i = 0; i < numThreads; ++i)
 		{

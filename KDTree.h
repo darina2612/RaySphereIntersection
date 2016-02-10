@@ -13,7 +13,7 @@
 using std::vector;
 
 //const float travesingCost = 1.f;
-const int maxSpheresInLeaf = 32;
+const int maxSpheresInLeaf = 64;
 
 
 enum Axis{X, Y, Z};
