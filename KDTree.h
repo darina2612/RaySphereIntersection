@@ -1,3 +1,8 @@
+//!!!Mainly using as guides here the following:
+//http://www.sci.utah.edu/~wald/PhD/wald_phd.pdf
+//http://www.cescg.org/CESCG-2005/papers/TUBudapest-Toth-Balazs.pdf
+//http://dcgi.felk.cvut.cz/home/havran/ARTICLES/ingo06rtKdtree.pdf
+
 #ifndef KDTREE_H_
 #define KDTREE_H_
 
@@ -28,14 +33,13 @@ struct BoundingBox
 
 struct LeafNode {
 	//flag -1b(isLeaf) | offset - 31b(index of spheres indexes in leafSpheresIndexes)
-	unsigned int flagDimentionOffset;
+	unsigned flagDimentionOffset;
 };
 
 
 struct InnerNode {
-	unsigned int flagDimentionOffset;
-	// bits 0..30: offset to first son
-	// bit 31 (sign) : flat whether node is a leaf
+	//flag -1b(isLeaf) | offset - 28b(offset in bytes to the first child)|splitDimention - 2b(X, Y or Z)
+	unsigned flagDimentionOffset;
 	float splitCoordinate;
 };
 
@@ -49,7 +53,7 @@ union Node
 
 inline bool isLeaf(const Node& n)
 {
-	return n.inner.flagDimentionOffset & (unsigned int)(1<<31);
+	return (n.inner.flagDimentionOffset) & (unsigned)(1<<31);
 }
 
 
@@ -59,7 +63,7 @@ inline Axis splitAxis(const Node& n)
 }
 
 
-inline int firstChildOffset(const Node& n)
+inline unsigned firstChildOffset(const Node& n)
 {
 	return n.inner.flagDimentionOffset & (0x7FFFFFFC);
 }
@@ -80,12 +84,12 @@ struct SplitPlane
 
 class KDTree {
 public:
-	KDTree(){leaves = 0;};
+	KDTree(){};
 
 	KDTree(const KDTree& other) = delete;
 	KDTree& operator = (const KDTree& other) = delete;
 
-	~KDTree();
+	~KDTree(){};
 
 	void BuildTree(const vector<Sphere>& spheres);
 
@@ -93,29 +97,25 @@ public:
 
 	const vector<Sphere>& GetSpheres() const {return this->spheres;}
 
-	int NodesNumber() const {return tree.size();}
-	int LeavesNumber()const {return leaves;}
-
 private:
 	bool Traverse(const Ray& ray, float tnear, float tfar, float& intersectionPointT) const;
 
 	void MinAndMaxCoordinateByAxis(float& min, float& max, Axis axis);
-	void BuildTree(int nodeIndex, BoundingBox box,  const vector<int>& spheresIndexes);
+	void BuildTree(unsigned nodeIndex, BoundingBox box,  const vector<unsigned>& spheresIndexes);
 
-	float HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIndexes, Axis axis,
+	float HeuristicEstimation(BoundingBox box,  const vector<unsigned>& spheresIndexes, Axis axis,
 							  float splitCoordinate) const;
 
-	SplitPlane BestSplitPlane(const BoundingBox& box, const vector<int>& spheresIndexes) const;
-	void BestSplitPlaneByAxis(const BoundingBox& box, const vector<int>& spheresIndexes, Axis axis,
+	SplitPlane BestSplitPlane(const BoundingBox& box, const vector<unsigned>& spheresIndexes) const;
+	void BestSplitPlaneByAxis(const BoundingBox& box, const vector<unsigned>& spheresIndexes, Axis axis,
 							  SplitPlane& bestPlane) const;
 
-	bool ClosestIntersectionPointInLeaf(int leafIndex, const Ray& ray, float& closestPointT) const;
+	bool ClosestIntersectionPointInLeaf(unsigned leafIndex, const Ray& ray, float& closestPointT) const;
 
 	std::vector<Node> tree;
 	std::vector<Sphere> spheres;
-	std::vector< std::vector<int> > leafSpheresIndexes;
+	std::vector< std::vector<unsigned> > leafSpheresIndexes;
 	BoundingBox sceneBox;
-	int leaves;
 };
 
 #endif /* KDTREE_H_ */

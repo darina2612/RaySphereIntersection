@@ -10,29 +10,17 @@ using std::max;
 using std::stack;
 
 
-KDTree::~KDTree()
-{
-	// TODO Auto-generated destructor stub
-}
-
-
 bool KDTree::Intersect(const Ray& ray, Vector3D& intersectionPoint) const
 {
+	// used for help here http://gamedev.stackexchange.com/questions/18436/most-efficient-aabb-vs-ray-collision-algorithms
 	float tmin, tmax;
 	Vector3D inversedDir;
 	inversedDir.vectored = 1.f / ray.dir.vectored;
 
-	// lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
-	// r.org is origin of ray
 	Vector3D minPlanesIntersections, maxPlanesIntersections;
 	minPlanesIntersections = (this->sceneBox.minPoint - ray.origin) * inversedDir;
 	maxPlanesIntersections = (this->sceneBox.maxPoint - ray.origin) * inversedDir;
-//	float t1 = (lb.x - r.org.x)*dirfrac.x;
-//	float t2 = (rt.x - r.org.x)*dirfrac.x;
-//	float t3 = (lb.y - r.org.y)*dirfrac.y;
-//	float t4 = (rt.y - r.org.y)*dirfrac.y;
-//	float t5 = (lb.z - r.org.z)*dirfrac.z;
-//	float t6 = (rt.z - r.org.z)*dirfrac.z;
+
 
 	tmin = max(max(min(minPlanesIntersections[0], maxPlanesIntersections[0]),
 			min(minPlanesIntersections[1], maxPlanesIntersections[1])),
@@ -41,19 +29,11 @@ bool KDTree::Intersect(const Ray& ray, Vector3D& intersectionPoint) const
 			max(minPlanesIntersections[1], maxPlanesIntersections[1])),
 			max(minPlanesIntersections[2], maxPlanesIntersections[2]));
 
-	// if tmax < 0, ray (line) is intersecting AABB, but whole AABB is behing us
-	if (tmax < 0)
-	{
-	    //t = tmax;
-	    return false;
-	}
+	// if tmax < 0, the scene box is "behing" the ray
+	if(tmax < 0) return false;
 
-	// if tmin > tmax, ray doesn't intersect AABB
-	if (tmin > tmax)
-	{
-	    //t = tmax;
-	    return false;
-	}
+	// if tmin > tmax, ray doesn't intersect scene bounding box
+	if(tmin > tmax) return false;
 
 	float closestIntersectionPointT;
 
@@ -81,7 +61,7 @@ bool KDTree::Traverse(const Ray& ray, float tnear, float tfar, float& intersecti
 
 	float d;
 	Axis axis;
-	int currentIndex = 0;
+	unsigned currentIndex = 0;
 	while(true)
 	{
 		while(!isLeaf(this->tree[currentIndex]))
@@ -89,34 +69,30 @@ bool KDTree::Traverse(const Ray& ray, float tnear, float tfar, float& intersecti
 			axis = splitAxis(this->tree[currentIndex]);
 			d = (this->tree[currentIndex].inner.splitCoordinate - ray.origin[axis]) / ray.dir[axis];
 
+			unsigned leftChild = currentIndex + (firstChildOffset(this->tree[currentIndex]) / sizeof(Node));
+			unsigned rightChild = leftChild + 1;
 			if(d <= tnear)
 			{
-			// case one, d <= t_near <= t_far -> cull front side
-				//get second child
-				currentIndex += (firstChildOffset(this->tree[currentIndex]) / sizeof(Node)) + 1;
+				currentIndex = rightChild;
 			}
 			else if(d >= tfar)
 			{
-				//case two, t_near <= t_far <= d -> cull back side
-				//get first child
-				currentIndex += firstChildOffset(this->tree[currentIndex]) / sizeof(Node);
+				currentIndex = leftChild;
 			}
 			else
 			{
-				// case three: traverse both sides in turn
-				s.push(StackNode((firstChildOffset(this->tree[currentIndex]) / sizeof(Node)) + 1, d, tfar));
-				currentIndex += firstChildOffset(this->tree[currentIndex]) / sizeof(Node);
+				s.push(StackNode(rightChild, d, tfar));
+				currentIndex = leftChild;
 				tfar = d;
-
 			}
 		}
 
 		if(this->ClosestIntersectionPointInLeaf(currentIndex, ray, intersectionPointT)) return true;
 
 		if(tfar >= intersectionPointT)
-			return false; // early ray termination
+			return false;
 		if (s.empty())
-			return false; // nothing else to traverse anymore
+			return false;
 
 		StackNode n = s.top();
 		s.pop();
@@ -124,13 +100,14 @@ bool KDTree::Traverse(const Ray& ray, float tnear, float tfar, float& intersecti
 		tnear = n.tmin;
 		tfar = n.tmax;
 	}
-
 }
 
 
-bool KDTree::ClosestIntersectionPointInLeaf(int leafIndex, const Ray& ray, float& closestPointT) const
+
+//mainly using help from http://www.vis.uky.edu/~ryang/teaching/cs535-2012spr/Lectures/13-RayTracing-II.pdf
+bool KDTree::ClosestIntersectionPointInLeaf(unsigned leafIndex, const Ray& ray, float& closestPointT) const
 {
-	int spheresIndexesIndex = this->tree[leafIndex].leaf.flagDimentionOffset;
+	unsigned spheresIndexesIndex = this->tree[leafIndex].leaf.flagDimentionOffset;
 	spheresIndexesIndex &= (unsigned)~(1 << 31);
 
 	int numSpheres = this->leafSpheresIndexes[spheresIndexesIndex].size();
@@ -209,7 +186,7 @@ void KDTree::MinAndMaxCoordinateByAxis(float& min, float& max, Axis axis)
 
 	float currentMin, currentMax;
 
-	for(auto sphere : this->spheres)
+	for(const auto& sphere : this->spheres)
 	{
 		currentMin = sphere.center[axis] - sphere.radius;
 		currentMax = sphere.center[axis] + sphere.radius;
@@ -223,17 +200,20 @@ void KDTree::BuildTree(const vector<Sphere>& spheres)
 {
 	this->spheres = spheres;
 
+	this->tree.resize(0);
 	this->tree.push_back(Node());
 
 	std::thread byX(&KDTree::MinAndMaxCoordinateByAxis, this, std::ref(this->sceneBox.minPoint.x),
 					std::ref(this->sceneBox.maxPoint.x), X);
 	std::thread byY(&KDTree::MinAndMaxCoordinateByAxis, this, std::ref(this->sceneBox.minPoint.y),
 					std::ref(this->sceneBox.maxPoint.y), Y);
+	std::thread byZ(&KDTree::MinAndMaxCoordinateByAxis, this, std::ref(this->sceneBox.minPoint.z),
+						std::ref(this->sceneBox.maxPoint.z), Z);
 
-	this->MinAndMaxCoordinateByAxis(this->sceneBox.minPoint.z,this->sceneBox.maxPoint.z, Z);
+	//this->MinAndMaxCoordinateByAxis(this->sceneBox.minPoint.z,this->sceneBox.maxPoint.z, Z);
 
 	int n = this->spheres.size();
-	vector<int> spheresIndexes(n);
+	vector<unsigned> spheresIndexes(n);
 	for(int i = 0; i < n; ++i)
 	{
 		spheresIndexes[i] = i;
@@ -241,21 +221,20 @@ void KDTree::BuildTree(const vector<Sphere>& spheres)
 
 	byX.join();
 	byY.join();
+	byZ.join();
 
 	this->BuildTree(0, this->sceneBox, spheresIndexes);
 }
 
 
-void KDTree::BuildTree(int nodeIndex, BoundingBox box, const vector<int>& spheresIndexes)
+void KDTree::BuildTree(unsigned nodeIndex, BoundingBox box, const vector<unsigned>& spheresIndexes)
 {
 	if(spheresIndexes.size() <= maxSpheresInLeaf)
 	{
 		this->leafSpheresIndexes.push_back(spheresIndexes);
 		this->tree[nodeIndex].leaf.flagDimentionOffset = 0;
-		this->tree[nodeIndex].leaf.flagDimentionOffset = this->leafSpheresIndexes.size() - 1;
+		this->tree[nodeIndex].leaf.flagDimentionOffset |= this->leafSpheresIndexes.size() - 1;
 		this->tree[nodeIndex].leaf.flagDimentionOffset |= (unsigned int)(1<<31);//is leaf, flag set to 1
-		++(this->leaves);
-		//std::cout << " leaf: " << spheresIndexes.size() << ' ';
 		return;
 	}
 
@@ -265,9 +244,9 @@ void KDTree::BuildTree(int nodeIndex, BoundingBox box, const vector<int>& sphere
 
 	box.Split(plane.axis, plane.coordinate, leftBox, rightBox);
 
-	vector<int> leftSpheresIndexes, rightSpheresIndexes;
+	vector<unsigned> leftSpheresIndexes, rightSpheresIndexes;
 
-	for(auto i : spheresIndexes)
+	for(unsigned i : spheresIndexes)
 	{
 		if(this->spheres[i].center[plane.axis] <= plane.coordinate)
 		{
@@ -279,17 +258,20 @@ void KDTree::BuildTree(int nodeIndex, BoundingBox box, const vector<int>& sphere
 	Node leftChild, rightChild;
 	this->tree.push_back(leftChild);
 	this->tree.push_back(rightChild);
-	this->tree[nodeIndex].inner.flagDimentionOffset = 0.f;
-	this->tree[nodeIndex].inner.flagDimentionOffset = (this->tree.size()-2 - nodeIndex) * sizeof(Node);//the offset of the first child *8, do the first 3 bits are 0's
+	unsigned leftChildIndex = tree.size() - 2;
+	unsigned rightChildIndex= leftChildIndex + 1;
+	this->tree[nodeIndex].inner.flagDimentionOffset = 0;
+	this->tree[nodeIndex].inner.flagDimentionOffset |= (leftChildIndex - nodeIndex) * sizeof(Node);//the offset of the first child *8, do the first 3 bits are 0's
 	this->tree[nodeIndex].inner.flagDimentionOffset |= (unsigned)plane.axis;
-	this->BuildTree(this->tree.size() - 2, leftBox, leftSpheresIndexes);
-	this->BuildTree(this->tree.size() - 1, rightBox, rightSpheresIndexes);
+	this->tree[nodeIndex].inner.splitCoordinate = plane.coordinate;
+	this->BuildTree(leftChildIndex, leftBox, leftSpheresIndexes);
+	this->BuildTree(rightChildIndex, rightBox, rightSpheresIndexes);
 }
 
 
 //Cost(cell) = C_trav + Prob(hit L) * Cost(L) + Prob(hit R) * Cost(R)
 //= C_trav + SA(L) * TriCount(L) + SA(R) * TriCount(R)
-float KDTree::HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIndexes,
+float KDTree::HeuristicEstimation(BoundingBox box,  const vector<unsigned>& spheresIndexes,
 								 Axis axis, float splitCoordinate) const
 {
 	float al, bl, cl, ar, br, cr; //boxes' dimensions lengths
@@ -334,7 +316,7 @@ float KDTree::HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIn
 	float sl = al * bl + bl * cl + al * cl;// multiplying the exact formula by 1/2
 	float sr = ar * br + br * cr + ar * cr;//it won't change the estimation
 
-	int rightSpheresCount = 0, leftSpheresCount = 0;
+	unsigned rightSpheresCount = 0, leftSpheresCount = 0;
 
 	for(int i : spheresIndexes)
 	{
@@ -346,7 +328,7 @@ float KDTree::HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIn
 }
 
 
-void KDTree::BestSplitPlaneByAxis(const BoundingBox& box,  const vector<int>& spheresIndexes, Axis axis,
+void KDTree::BestSplitPlaneByAxis(const BoundingBox& box,  const vector<unsigned>& spheresIndexes, Axis axis,
 								  SplitPlane& bestPlane) const
 {
 	SplitPlane currentPlane;
@@ -376,7 +358,7 @@ void KDTree::BestSplitPlaneByAxis(const BoundingBox& box,  const vector<int>& sp
 }
 
 
-SplitPlane KDTree::BestSplitPlane(const BoundingBox& box,  const vector<int>& spheresIndexes) const
+SplitPlane KDTree::BestSplitPlane(const BoundingBox& box,  const vector<unsigned>& spheresIndexes) const
 {
 	SplitPlane bestByX, bestByY, bestByZ;
 

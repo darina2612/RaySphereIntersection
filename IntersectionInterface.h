@@ -11,11 +11,7 @@ KDTree tree;
 
 bool IntersectRayWithSpheres(const Ray& ray, const vector<Sphere>& spheres, Vector3D& intersectionPoint)
 {
-	if(tree.GetSpheres() != spheres)
-	{
-		//tree = KDTree();
-		tree.BuildTree(spheres);
-	}
+	tree.BuildTree(spheres);
 
 	return tree.Intersect(ray, intersectionPoint);
 }
@@ -24,7 +20,7 @@ bool IntersectRayWithSpheres(const Ray& ray, const vector<Sphere>& spheres, Vect
 void RaysIntersection(const vector<Ray>& rays, const vector<Sphere>& spheres,
 		vector<Vector3D>& intersectionPoints, vector<char>& doesIntersect, int start, int end)
 {
-	for(int i = start; i < end; ++i)
+	for(unsigned i = start; i < end; ++i)
 	{
 		doesIntersect[i] = tree.Intersect(rays[i], intersectionPoints[i]);
 	}
@@ -43,23 +39,23 @@ void IntersectRaysWithSpheres(const vector<Ray>& rays, const vector<Sphere>& sph
 	int numThreads = rays.size() / raysPerThread;
 
 	vector<thread> threads;
-	if(numThreads > 1)
+	if(1 &&numThreads > 1)
 	{
 		threads.resize(numThreads);
-		for(int i = 1; i < numThreads - 1; ++i)
+		for(int i = 1; i <= numThreads; ++i)
 		{
-			threads[i] = thread(&RaysIntersection, std::cref(rays), std::cref(spheres),
+			threads[i - 1] = thread(&RaysIntersection, std::cref(rays), std::cref(spheres),
 						 std::ref(intersectionPoints), std::ref(doesIntersect),
 						 (i - 1) * raysPerThread, i * raysPerThread);
 		}
 
 	}
 
-	RaysIntersection(rays, spheres, intersectionPoints, doesIntersect, raysPerThread * (numThreads - 1), rays.size());
+	RaysIntersection(rays, spheres, intersectionPoints, doesIntersect,raysPerThread * numThreads, rays.size());
 
-	if(numThreads > 1)
+	if(1 && numThreads > 1)
 	{
-		for(int i = 1; i < (numThreads - 1); ++i)
+		for(int i = 0; i < numThreads; ++i)
 		{
 			threads[i].join();
 		}

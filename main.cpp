@@ -6,7 +6,7 @@
 int main()
 {
 	int n = 100000;
-	int rc = 2000000;
+	int rc = 3000000;
 	vector<Sphere> spheres(n);
 	vector<Ray> rays(rc);
 	vector<char> doesIntersect(rc);
@@ -21,7 +21,7 @@ int main()
 
 	for(int i = 0; i < rc; ++i)
 	{
-		rays[i].origin = {0, 0, 0};
+		rays[i].origin = {100, 100, 100};
 		rays[i].dir = {0.5, 0.5, 0.5};
 	}
 
