@@ -7,8 +7,8 @@
 
 using std::vector;
 
-const float travesingCost = 1.f;
-const int minSpheresInLeaf = 32;
+//const float travesingCost = 1.f;
+const int maxSpheresInLeaf = 32;
 
 
 enum Axis{X, Y, Z};
@@ -27,10 +27,8 @@ struct BoundingBox
 
 
 struct LeafNode {
+	//flag -1b(isLeaf) | offset - 31b(index of spheres indexes in leafSpheresIndexes)
 	unsigned int flagDimentionOffset;
-	// bits 0..1: splitting dimension
-	// bits 2..30v: offset bits
-	// bit 31 (sign) : flag whether node is a leaf
 };
 
 
@@ -92,6 +90,8 @@ public:
 	void BuildTree(const vector<Sphere>& spheres);
 
 	bool Intersect(const Ray& ray, Vector3D& intersectionPoint) const;
+
+	const vector<Sphere>& GetSpheres() const {return this->spheres;}
 
 	int NodesNumber() const {return tree.size();}
 	int LeavesNumber()const {return leaves;}

@@ -1,10 +1,3 @@
-/*
- * KDTree.cpp
- *
- *  Created on: Feb 7, 2016
- *      Author: darina
- */
-
 #include "KDTree.h"
 #include <stack>
 #include <limits>
@@ -255,7 +248,7 @@ void KDTree::BuildTree(const vector<Sphere>& spheres)
 
 void KDTree::BuildTree(int nodeIndex, BoundingBox box, const vector<int>& spheresIndexes)
 {
-	if(spheresIndexes.size() <= minSpheresInLeaf)
+	if(spheresIndexes.size() <= maxSpheresInLeaf)
 	{
 		this->leafSpheresIndexes.push_back(spheresIndexes);
 		this->tree[nodeIndex].leaf.flagDimentionOffset = 0;
@@ -349,7 +342,7 @@ float KDTree::HeuristicEstimation(BoundingBox box,  const vector<int>& spheresIn
 		else if((this->spheres[i].center[axis] - this->spheres[i].radius) >= splitCoordinate) ++rightSpheresCount;
 	}
 
-	return travesingCost + sl * leftSpheresCount + sr * rightSpheresCount;
+	return sl * leftSpheresCount + sr * rightSpheresCount;
 }
 
 
